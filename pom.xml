@@ -17,6 +17,7 @@
     <module>com.advanced.training.sample.authenticator</module>
     <module>com.advanced.training.sample.user.store.manager</module>
     <module>com.advanced.training.sample.event.handler</module>
+    <module>com.advanced.training.sample.claim.handler</module>
   </modules>
 
   <properties>
