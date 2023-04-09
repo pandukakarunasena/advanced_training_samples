@@ -36,21 +36,9 @@ public class CustomClaimHandler extends DefaultClaimHandler {
     public Map<String, String> handleClaimMappings(StepConfig stepConfig,
                                                    AuthenticationContext context, Map<String, String> remoteClaims,
                                                    boolean isFederatedClaims) throws FrameworkException {
+       //add code here
 
-        String authenticatedUser = null;
-
-        if (stepConfig != null) {
-            //calling from StepBasedSequenceHandler
-            authenticatedUser = stepConfig.getAuthenticatedUser().getUserName();
-        } else {
-            //calling from RequestPathBasedSequenceHandler
-            authenticatedUser = context.getSequenceConfig().getAuthenticatedUser().getUserName();
-        }
-
-        Map<String, String> claims = super.handleClaimMappings(stepConfig, context, remoteClaims, isFederatedClaims);
-        claims.putAll(handleExternalClaims(authenticatedUser));
-
-        return claims;
+       return null;
     }
 
     /**
@@ -61,8 +49,8 @@ public class CustomClaimHandler extends DefaultClaimHandler {
      * @return
      */
     private Map<String, String> handleExternalClaims(String authenticatedUser) throws FrameworkException {
-        Map<String, String> externalClaims = new HashMap<String, String>();
-        externalClaims.put("keplerNumber","E90836W19881010");
-        return externalClaims;
+
+       //add code here
+       return null;
     }
 }

@@ -43,8 +43,7 @@ public class CustomUserStoreManager extends UniqueIDJDBCUserStoreManager {
             claimManager, ProfileConfigurationManager profileManager, UserRealm realm, Integer tenantId)
             throws UserStoreException {
 
-        super(realmConfig, properties, claimManager, profileManager, realm, tenantId);
-        log.info("CustomUserStoreManager initialized...");
+        //add code here
     }
 
 
@@ -52,108 +51,15 @@ public class CustomUserStoreManager extends UniqueIDJDBCUserStoreManager {
     public AuthenticationResult doAuthenticateWithUserName(String userName, Object credential)
             throws UserStoreException {
 
-        boolean isAuthenticated = false;
-        String userID = null;
-        User user;
-        // In order to avoid unnecessary db queries.
-        if (!isValidUserName(userName)) {
-            String reason = "Username validation failed.";
-            if (log.isDebugEnabled()) {
-                log.debug(reason);
-            }
-            return getAuthenticationResult(reason);
-        }
-
-        if (!isValidCredentials(credential)) {
-            String reason = "Password validation failed.";
-            if (log.isDebugEnabled()) {
-                log.debug(reason);
-            }
-            return getAuthenticationResult(reason);
-        }
-
-        try {
-            String candidatePassword = String.copyValueOf(((Secret) credential).getChars());
-
-            Connection dbConnection = null;
-            ResultSet rs = null;
-            PreparedStatement prepStmt = null;
-            String sql = null;
-            dbConnection = this.getDBConnection();
-            dbConnection.setAutoCommit(false);
-            // get the SQL statement used to select user details
-            sql = this.realmConfig.getUserStoreProperty(JDBCRealmConstants.SELECT_USER_NAME);
-            if (log.isDebugEnabled()) {
-                log.debug(sql);
-            }
-
-            prepStmt = dbConnection.prepareStatement(sql);
-            prepStmt.setString(1, userName);
-            // check whether tenant id is used
-            if (sql.contains(UserCoreConstants.UM_TENANT_COLUMN)) {
-                prepStmt.setInt(2, this.tenantId);
-            }
-
-            rs = prepStmt.executeQuery();
-            if (rs.next()) {
-                userID = rs.getString(1);
-                String storedPassword = rs.getString(3);
-
-                // check whether password is expired or not
-                boolean requireChange = rs.getBoolean(5);
-                Timestamp changedTime = rs.getTimestamp(6);
-                GregorianCalendar gc = new GregorianCalendar();
-                gc.add(GregorianCalendar.HOUR, -24);
-                Date date = gc.getTime();
-                if (!(requireChange && changedTime.before(date))) {
-                    // compare the given password with the stored password using jasypt
-                    isAuthenticated = passwordEncryptor.checkPassword(candidatePassword, storedPassword);
-                }
-            }
-            dbConnection.commit();
-            log.info(userName + " is authenticated? " + isAuthenticated);
-        } catch (SQLException exp) {
-            try {
-                this.getDBConnection().rollback();
-            } catch (SQLException e1) {
-                throw new UserStoreException("Transaction rollback connection error occurred while" +
-                        " retrieving user authentication info. Authentication Failure.", e1);
-            }
-            log.error("Error occurred while retrieving user authentication info.", exp);
-            throw new UserStoreException("Authentication Failure");
-        }
-        if (isAuthenticated) {
-            user = getUser(userID, userName);
-            AuthenticationResult authenticationResult = new AuthenticationResult(
-                    AuthenticationResult.AuthenticationStatus.SUCCESS);
-            authenticationResult.setAuthenticatedUser(user);
-            return authenticationResult;
-        } else {
-            AuthenticationResult authenticationResult = new AuthenticationResult(
-                    AuthenticationResult.AuthenticationStatus.FAIL);
-            authenticationResult.setFailureReason(new FailureReason("Invalid credentials."));
-            return authenticationResult;
-        }
+        //add code here
+        return null;
     }
 
     @Override
     protected String preparePassword(Object password, String saltValue) throws UserStoreException {
-        if (password != null) {
-            String candidatePassword = String.copyValueOf(((Secret) password).getChars());
-            // ignore saltValue for the time being
-            log.info("Generating hash value using jasypt...");
-            return passwordEncryptor.encryptPassword(candidatePassword);
-        } else {
-            log.error("Password cannot be null");
-            throw new UserStoreException("Authentication Failure");
-        }
+
+        //add code here
+        return null;
     }
 
-    private AuthenticationResult getAuthenticationResult(String reason) {
-
-        AuthenticationResult authenticationResult = new AuthenticationResult(
-                AuthenticationResult.AuthenticationStatus.FAIL);
-        authenticationResult.setFailureReason(new FailureReason(reason));
-        return authenticationResult;
-    }
 }

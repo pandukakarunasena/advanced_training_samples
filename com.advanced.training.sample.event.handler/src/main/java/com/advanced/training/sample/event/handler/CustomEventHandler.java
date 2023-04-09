@@ -26,7 +26,9 @@ public class CustomEventHandler extends AbstractEventHandler {
                     IdentityEventConstants.EventProperty.TENANT_DOMAIN);
             String username = (String) event.getEventProperties().get(IdentityEventConstants.EventProperty.USER_NAME);
             log.info("Handling the event before adding user: " + username + " in tenant domain: " + tenantDomain);
-            // You can write any code here to handle the event.
+
+            // add code here.
+
         }
 
         if (IdentityEventConstants.Event.POST_ADD_USER.equals(event.getEventName())) {
@@ -34,7 +36,8 @@ public class CustomEventHandler extends AbstractEventHandler {
                     .get(IdentityEventConstants.EventProperty.TENANT_DOMAIN);
             String userName = (String) event.getEventProperties().get(IdentityEventConstants.EventProperty.USER_NAME);
             log.info("Handling the event after adding user: " + userName + " in tenant domain: " + tenantDomain);
-            // You can write any code here to handle the event.
+
+            // add code here.
         }
     }
 

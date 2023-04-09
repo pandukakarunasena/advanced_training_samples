@@ -24,14 +24,7 @@ public class CustomUserOperationEventListener extends AbstractUserOperationEvent
     @Override
     public boolean doPostAuthenticate(String userName, boolean authenticated, UserStoreManager userStoreManager) throws UserStoreException {
 
-        // check whether user is authenticated
-        if(authenticated){
-
-            log.info("=== doPostAuthenticate ===");
-            log.info("User " + userName + " logged in at " + System.currentTimeMillis());
-            log.info("=== /doPostAuthenticate ===");
-
-        }
+        //add code here
 
         return true;
     }
@@ -42,13 +35,7 @@ public class CustomUserOperationEventListener extends AbstractUserOperationEvent
                                  UserStoreManager userStoreManager)
             throws UserStoreException {
 
-
-        log.info("=== doPostAddUser ===");
-        log.info("User " + userName + " created at " + System.currentTimeMillis());
-        log.info(credential.toString());
-        log.info(" === ");
-        log.info(claims.toString());
-        log.info("=== /doPostAddUser ===");
+        //add code here
 
         return true;
     }
@@ -59,34 +46,7 @@ public class CustomUserOperationEventListener extends AbstractUserOperationEvent
                                             String profileName, UserStoreManager userStoreManager)
             throws UserStoreException {
 
-
-        log.info("=== doPostSetUserClaimValues ===");
-
-        log.info("Username: " + userName);
-        log.info("Profile: " + profileName);
-
-        log.info("NAME: " + userStoreManager.getUserClaimValue(userName, "http://wso2.org/claims/fullname", profileName));
-        log.info("EMAIL: " + userStoreManager.getUserClaimValue(userName, "http://wso2.org/claims/emailaddress", profileName));
-
-
-//        This doesn't work for identity claims
-//        log.info("LOCKED: " + userStoreManager.getUserClaimValue(userName, "http://wso2.org/claims/identity/accountLocked", profileName));
-
-//        Following is the workaround for above problem
-
-        String[] claimNames = {
-                "http://wso2.org/claims/identity/accountLocked",
-                "http://wso2.org/claims/identity/emailVerified"
-        };
-
-        Map<String, String> claimValues = userStoreManager.getUserClaimValues(userName, claimNames, profileName);
-
-        log.info("LOCKED: " + claimValues.get(claimNames[0]));
-        log.info("EmailVerified: " + claimValues.get(claimNames[1]));
-
-        log.info(claims.toString());
-
-        log.info("=== /doPostSetUserClaimValues ===");
+        //add code here
 
         return true;
     }

@@ -9,7 +9,6 @@ public class CustomOauthGrantValidator  extends AbstractValidator<HttpServletReq
 
     public CustomOauthGrantValidator() {
 
-        // mobile number must be in the request parameter
-        requiredParams.add(CustomOauthGrant.MOBILE_GRANT_PARAM);
+        //add code here
     }
 }
