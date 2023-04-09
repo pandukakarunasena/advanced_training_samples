@@ -157,6 +157,7 @@ public class CustomOauthGrant extends AbstractAuthorizationGrantHandler {
 
     @Override
     public boolean isOfTypeApplicationUser() throws IdentityOAuth2Exception {
+
         return true;
     }
 
