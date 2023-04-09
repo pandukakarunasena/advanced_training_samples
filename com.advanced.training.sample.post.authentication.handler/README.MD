@@ -2,9 +2,9 @@
 USE CASE : <br />
 This sample will act as a post authenticator which will request for your consent for retrieving user 
 information from IS to Service provider, upon successfully passing authentication steps. 
-The behaviour of this post authentication handler is a consent page will be popped up upon successfully passing authentication steps.
+The behaviour of this post authentication handler is a consent page/terms and conditions page will be popped up upon successfully passing authentication steps.
 If you click on approve, then you will be redirected to your application with successful login
-If you deny the consent, authentication will be failed and you will be shown an error message on the screen.
+If you deny the consent, authentication will be failed, and you will be shown an error message on the screen.
 
 
 CONFIGURATION : <br />

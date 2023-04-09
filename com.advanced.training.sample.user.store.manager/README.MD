@@ -2,6 +2,10 @@ USE CASE : <br />
 Consider a sample scenario where you want to use a custom hashing method using a 3rd party library 
 such as Jasypt and to do this, you need to override the doAuthentication and preparePassword methods.
 
+Consider a sample scenario that you have to plug a database which contains different schemas than Identity Server 
+schemas where you have user data. In this case existing user store managers will not cater as the underlying schema 
+is different. To solve this issue we can create a custom user store manager to be compatible with a custom schema.
+
 CONFIGURATION : <br />
 
 [user_store_mgt] <br />
