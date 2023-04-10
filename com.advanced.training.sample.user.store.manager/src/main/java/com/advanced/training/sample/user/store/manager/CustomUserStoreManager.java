@@ -2,7 +2,9 @@ package com.advanced.training.sample.user.store.manager;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.jasypt.util.password.StrongPasswordEncryptor;
+import org.wso2.carbon.CarbonConstants;
+import org.wso2.carbon.user.api.Properties;
+import org.wso2.carbon.user.api.Property;
 import org.wso2.carbon.user.api.RealmConfiguration;
 import org.wso2.carbon.user.core.UserCoreConstants;
 import org.wso2.carbon.user.core.UserRealm;
@@ -11,18 +13,24 @@ import org.wso2.carbon.user.core.claim.ClaimManager;
 import org.wso2.carbon.user.core.common.AuthenticationResult;
 import org.wso2.carbon.user.core.common.FailureReason;
 import org.wso2.carbon.user.core.common.User;
-import org.wso2.carbon.user.core.jdbc.JDBCRealmConstants;
 import org.wso2.carbon.user.core.jdbc.UniqueIDJDBCUserStoreManager;
 import org.wso2.carbon.user.core.profile.ProfileConfigurationManager;
-import org.wso2.carbon.utils.Secret;
+import org.wso2.carbon.user.core.util.DatabaseUtil;
+import org.wso2.carbon.user.core.util.UserCoreUtil;
+
+import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Timestamp;
-import java.util.Date;
-import java.util.GregorianCalendar;
+import java.sql.SQLTimeoutException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -31,9 +39,6 @@ import java.util.Map;
 public class CustomUserStoreManager extends UniqueIDJDBCUserStoreManager {
 
     private static final Log log = LogFactory.getLog(CustomUserStoreManager.class);
-
-    private static final StrongPasswordEncryptor passwordEncryptor = new StrongPasswordEncryptor();
-
 
     public CustomUserStoreManager() {
 
@@ -47,20 +52,170 @@ public class CustomUserStoreManager extends UniqueIDJDBCUserStoreManager {
         log.info("CustomUserStoreManager initialized...");
     }
 
+    /**
+     * It returns the digest value of a particular SHA-256 algorithm in the form of Byte Array.
+     *
+     * @param input The String password which needs to be hashed using the particular algorithm.
+     * @return The byte array of hashed password.
+     * @throws NoSuchAlgorithmException //no such algorithm which is defined
+     */
+    public static byte[] getSHA(String input) throws NoSuchAlgorithmException {
+
+        MessageDigest md = MessageDigest.getInstance("SHA-256");
+        return md.digest(input.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * Byte array has been converted into hex format to get the MessageDigest.
+     *
+     * @param hash Byte array which contains hashed password
+     * @return final hashed hexString
+     */
+    public static String toHexString(byte[] hash) {
+
+        BigInteger number = new BigInteger(1, hash);
+        StringBuilder hexString = new StringBuilder(number.toString(16));
+        while (hexString.length() < 32) {
+            hexString.insert(0, '0');
+        }
+        return hexString.toString();
+    }
 
     @Override
-    public AuthenticationResult doAuthenticateWithUserName(String userName, Object credential)
+    public List<User> doListUsersWithID(String filter, int maxItemLimit) throws UserStoreException {
+
+        List<User> users = new ArrayList<>();
+        Connection dbConnection = null;
+        String sqlStmt;
+        PreparedStatement prepStmt = null;
+        ResultSet rs = null;
+
+        if (maxItemLimit == 0) {
+            return Collections.emptyList();
+        }
+
+        int givenMax;
+        try {
+            givenMax = Integer
+                    .parseInt(realmConfig.getUserStoreProperty(UserCoreConstants.RealmConfig.PROPERTY_MAX_USER_LIST));
+        } catch (NumberFormatException e) {
+            givenMax = UserCoreConstants.MAX_USER_ROLE_LIST;
+        }
+
+        if (maxItemLimit < 0 || maxItemLimit > givenMax) {
+            maxItemLimit = givenMax;
+        }
+
+        try {
+
+            if (filter != null && filter.trim().length() != 0) {
+                filter = filter.trim();
+                filter = filter.replace("*", "%");
+                filter = filter.replace("?", "_");
+            } else {
+                filter = "%";
+            }
+
+            List<User> userList = new ArrayList<>();
+
+            dbConnection = getDBConnection();
+
+            if (dbConnection == null) {
+                throw new UserStoreException("Attempts to establish a connection with the data source has failed.");
+            }
+            sqlStmt = "SELECT ID,USERNAME FROM USERS WHERE USERNAME LIKE ? ORDER BY USERNAME";
+            prepStmt = dbConnection.prepareStatement(sqlStmt);
+            prepStmt.setString(1, filter);
+
+            prepStmt.setMaxRows(maxItemLimit);
+
+            try {
+                rs = prepStmt.executeQuery();
+            } catch (SQLException e) {
+                if (e instanceof SQLTimeoutException) {
+                    log.error("The cause might be a time out. Hence ignored", e);
+                    return users;
+                }
+                String errorMessage =
+                        "Error while fetching users according to filter : " + filter + " & max Item limit " + ": "
+                                + maxItemLimit;
+                if (log.isDebugEnabled()) {
+                    log.debug(errorMessage, e);
+                }
+                throw new UserStoreException(errorMessage, e);
+            }
+
+            while (rs.next()) {
+                String userID = rs.getString(1);
+                String userName = rs.getString(2);
+                if (CarbonConstants.REGISTRY_ANONNYMOUS_USERNAME.equals(userID)) {
+                    continue;
+                }
+
+                User user = getUser(userID, userName);
+                userList.add(user);
+            }
+            rs.close();
+
+            if (!userList.isEmpty()) {
+                users = userList;
+            }
+
+        } catch (SQLException e) {
+            String msg = "Error occurred while retrieving users for filter : " + filter + " & max Item limit : "
+                    + maxItemLimit;
+            if (log.isDebugEnabled()) {
+                log.debug(msg, e);
+            }
+            throw new UserStoreException(msg, e);
+        } finally {
+            DatabaseUtil.closeAllConnections(dbConnection, rs, prepStmt);
+        }
+
+        return users;
+    }
+
+    @Override
+    public org.wso2.carbon.user.api.Properties getDefaultUserStoreProperties() {
+
+        Properties properties = new Properties();
+
+        properties.setMandatoryProperties(CustomUserStoreConstants.CUSTOM_UM_MANDATORY_PROPERTIES.toArray
+                (new Property[0]));
+        properties.setOptionalProperties(CustomUserStoreConstants.CUSTOM_UM_OPTIONAL_PROPERTIES.toArray
+                (new Property[0]));
+        properties.setAdvancedProperties(CustomUserStoreConstants.CUSTOM_UM_ADVANCED_PROPERTIES.toArray
+                (new Property[0]));
+        return properties;
+    }
+
+    private AuthenticationResult getAuthenticationResult(String reason) {
+
+        AuthenticationResult authenticationResult = new AuthenticationResult(
+                AuthenticationResult.AuthenticationStatus.FAIL);
+        authenticationResult.setFailureReason(new FailureReason(reason));
+        return authenticationResult;
+    }
+
+    @Override
+    protected AuthenticationResult doAuthenticateWithUserName(String userName, Object credential)
             throws UserStoreException {
 
-        boolean isAuthenticated = false;
-        String userID = null;
+        AuthenticationResult authenticationResult = new AuthenticationResult(
+                AuthenticationResult.AuthenticationStatus.FAIL);
         User user;
-        // In order to avoid unnecessary db queries.
+
         if (!isValidUserName(userName)) {
             String reason = "Username validation failed.";
             if (log.isDebugEnabled()) {
                 log.debug(reason);
             }
+            return getAuthenticationResult(reason);
+        }
+
+        if (UserCoreUtil.isRegistryAnnonymousUser(userName)) {
+            String reason = "Anonymous user trying to login.";
+            log.error(reason);
             return getAuthenticationResult(reason);
         }
 
@@ -72,88 +227,95 @@ public class CustomUserStoreManager extends UniqueIDJDBCUserStoreManager {
             return getAuthenticationResult(reason);
         }
 
+        Connection dbConnection = null;
+        ResultSet rs = null;
+        PreparedStatement prepStmt = null;
+        String sqlstmt;
+        String password = null;
+        boolean isAuthed = false;
+
         try {
-            String candidatePassword = String.copyValueOf(((Secret) credential).getChars());
-
-            Connection dbConnection = null;
-            ResultSet rs = null;
-            PreparedStatement prepStmt = null;
-            String sql = null;
-            dbConnection = this.getDBConnection();
+            dbConnection = getDBConnection();
             dbConnection.setAutoCommit(false);
-            // get the SQL statement used to select user details
-            sql = this.realmConfig.getUserStoreProperty(JDBCRealmConstants.SELECT_USER_NAME);
+
+            sqlstmt = "SELECT ID,USERNAME,PASSWORD FROM USERS WHERE USERNAME=?";
+
             if (log.isDebugEnabled()) {
-                log.debug(sql);
+                log.debug(sqlstmt);
             }
 
-            prepStmt = dbConnection.prepareStatement(sql);
+            prepStmt = dbConnection.prepareStatement(sqlstmt);
             prepStmt.setString(1, userName);
-            // check whether tenant id is used
-            if (sql.contains(UserCoreConstants.UM_TENANT_COLUMN)) {
-                prepStmt.setInt(2, this.tenantId);
-            }
 
             rs = prepStmt.executeQuery();
-            if (rs.next()) {
-                userID = rs.getString(1);
+            while (rs.next()) {
+                String userID = rs.getString(1);
                 String storedPassword = rs.getString(3);
 
-                // check whether password is expired or not
-                boolean requireChange = rs.getBoolean(5);
-                Timestamp changedTime = rs.getTimestamp(6);
-                GregorianCalendar gc = new GregorianCalendar();
-                gc.add(GregorianCalendar.HOUR, -24);
-                Date date = gc.getTime();
-                if (!(requireChange && changedTime.before(date))) {
-                    // compare the given password with the stored password using jasypt
-                    isAuthenticated = passwordEncryptor.checkPassword(candidatePassword, storedPassword);
+                try {
+                    password = toHexString(getSHA(credential.toString()));
+                } catch (NoSuchAlgorithmException e) {
+                    String msg = "Exception thrown for incorrect algorithm: SHA256 ";
+                    if (log.isDebugEnabled()) {
+                        log.debug(msg, e);
+                    }
+                }
+                if ((storedPassword != null) && (storedPassword.equals(password))) {
+                    isAuthed = true;
+                    user = getUser(userID, userName);
+                    authenticationResult = new AuthenticationResult(
+                            AuthenticationResult.AuthenticationStatus.SUCCESS);
+                    authenticationResult.setAuthenticatedUser(user);
                 }
             }
-            dbConnection.commit();
-            log.info(userName + " is authenticated? " + isAuthenticated);
-        } catch (SQLException exp) {
-            try {
-                this.getDBConnection().rollback();
-            } catch (SQLException e1) {
-                throw new UserStoreException("Transaction rollback connection error occurred while" +
-                        " retrieving user authentication info. Authentication Failure.", e1);
+        } catch (SQLException e) {
+            String msg = "Error occurred while retrieving user authentication info for userName : " + userName;
+            if (log.isDebugEnabled()) {
+                log.debug(msg, e);
             }
-            log.error("Error occurred while retrieving user authentication info.", exp);
-            throw new UserStoreException("Authentication Failure");
+            throw new UserStoreException("Authentication Failure", e);
+        } finally {
+            DatabaseUtil.closeAllConnections(dbConnection, rs, prepStmt);
         }
-        if (isAuthenticated) {
-            user = getUser(userID, userName);
-            AuthenticationResult authenticationResult = new AuthenticationResult(
-                    AuthenticationResult.AuthenticationStatus.SUCCESS);
-            authenticationResult.setAuthenticatedUser(user);
-            return authenticationResult;
-        } else {
-            AuthenticationResult authenticationResult = new AuthenticationResult(
-                    AuthenticationResult.AuthenticationStatus.FAIL);
-            authenticationResult.setFailureReason(new FailureReason("Invalid credentials."));
-            return authenticationResult;
+        if (log.isDebugEnabled()) {
+            log.debug("UserName " + userName + " login attempt. Login success: " + isAuthed);
         }
+        return authenticationResult;
     }
 
     @Override
-    protected String preparePassword(Object password, String saltValue) throws UserStoreException {
-        if (password != null) {
-            String candidatePassword = String.copyValueOf(((Secret) password).getChars());
-            // ignore saltValue for the time being
-            log.info("Generating hash value using jasypt...");
-            return passwordEncryptor.encryptPassword(candidatePassword);
-        } else {
-            log.error("Password cannot be null");
-            throw new UserStoreException("Authentication Failure");
+    protected String doGetUserIDFromUserNameWithID(String userName) throws UserStoreException {
+
+        if (userName == null) {
+            throw new IllegalArgumentException("userName cannot be null.");
         }
-    }
 
-    private AuthenticationResult getAuthenticationResult(String reason) {
+        Connection dbConnection = null;
+        String sqlStmt;
+        PreparedStatement prepStmt = null;
+        ResultSet rs = null;
+        String userID = null;
+        try {
+            dbConnection = getDBConnection();
 
-        AuthenticationResult authenticationResult = new AuthenticationResult(
-                AuthenticationResult.AuthenticationStatus.FAIL);
-        authenticationResult.setFailureReason(new FailureReason(reason));
-        return authenticationResult;
+            sqlStmt = "SELECT ID FROM USERS WHERE USERNAME=?";
+            prepStmt = dbConnection.prepareStatement(sqlStmt);
+            prepStmt.setString(1, userName);
+
+            rs = prepStmt.executeQuery();
+            while (rs.next()) {
+                userID = rs.getString(1);
+            }
+        } catch (SQLException e) {
+            String msg = "Database error occurred while retrieving userID for a UserName : " + userName;
+            if (log.isDebugEnabled()) {
+                log.debug(msg, e);
+            }
+            throw new UserStoreException(msg, e);
+        } finally {
+            DatabaseUtil.closeAllConnections(dbConnection, rs, prepStmt);
+        }
+
+        return userID;
     }
 }
